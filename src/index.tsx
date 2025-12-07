@@ -718,7 +718,7 @@ app.get('/event-details/:eventId', (c) => {
 
                             <div class="bg-white rounded-xl shadow-lg p-6">
                                 <h3 class="text-2xl font-bold text-gray-800 mb-4">
-                                    <i class="fas fa-dollar-sign mr-2 text-pink-600"></i>Contributions (Private)
+                                    <i class="fas fa-dollar-sign mr-2 text-pink-600"></i>Contributions
                                 </h3>
                                 <div class="space-y-4 max-h-96 overflow-y-auto">
                                     \${contributions.length === 0 ? \`
