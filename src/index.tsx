@@ -56,8 +56,8 @@ app.post('/api/upload-image', async (c) => {
       },
     });
 
-    // Return public URL (for local dev, we'll use a placeholder pattern)
-    const publicUrl = `https://pub-upsend.r2.dev/${key}`;
+    // Return URL that will be served by our image endpoint
+    const publicUrl = `/api/images/${key}`;
     
     return c.json({ 
       success: true,
@@ -67,6 +67,29 @@ app.post('/api/upload-image', async (c) => {
   } catch (error) {
     console.error('Upload error:', error);
     return c.json({ error: 'Failed to upload image' }, 500);
+  }
+});
+
+// Serve images from R2
+app.get('/api/images/*', async (c) => {
+  try {
+    const key = c.req.path.replace('/api/images/', '');
+    
+    const object = await c.env.IMAGES.get(key);
+    
+    if (!object) {
+      return c.notFound();
+    }
+
+    return new Response(object.body, {
+      headers: {
+        'Content-Type': object.httpMetadata?.contentType || 'image/jpeg',
+        'Cache-Control': 'public, max-age=31536000',
+      },
+    });
+  } catch (error) {
+    console.error('Image serving error:', error);
+    return c.notFound();
   }
 });
 
