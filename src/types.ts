@@ -2,6 +2,7 @@
 export type Bindings = {
   DB: D1Database;
   IMAGES: R2Bucket;
+  RESEND_API_KEY: string;
 }
 
 // User types

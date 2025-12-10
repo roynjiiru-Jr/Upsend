@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { Resend } from 'resend';
 import type { Bindings, MagicLinkRequest, VerifyMagicLinkRequest } from '../types';
 import { generateToken, createSession } from '../utils/auth';
 
@@ -41,17 +42,99 @@ auth.post('/magic-link', async (c) => {
       `).bind(email, name, magicToken, expiresAt).run();
     }
 
-    // In production, send email with magic link
-    // For MVP, we'll return the token (in production, this should be sent via email)
-    const magicLink = `/auth/verify?token=${magicToken}`;
+    // Send magic link via email using Resend
+    const magicLink = `${new URL(c.req.url).origin}/auth/verify?token=${magicToken}`;
     
-    return c.json({ 
-      success: true, 
-      message: 'Magic link sent to your email',
-      // For MVP testing only - remove in production
-      dev_token: magicToken,
-      dev_link: magicLink
-    });
+    try {
+      const resend = new Resend(c.env.RESEND_API_KEY);
+      
+      const emailHtml = `
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Upsend Magic Link</title>
+        </head>
+        <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 40px 0;">
+                <tr>
+                    <td align="center">
+                        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); overflow: hidden;">
+                            <!-- Header with gradient -->
+                            <tr>
+                                <td style="background: linear-gradient(135deg, #9333ea 0%, #ec4899 100%); padding: 40px; text-align: center;">
+                                    <h1 style="margin: 0; color: #ffffff; font-size: 32px; font-weight: bold;">🎉 Upsend</h1>
+                                </td>
+                            </tr>
+                            
+                            <!-- Content -->
+                            <tr>
+                                <td style="padding: 40px;">
+                                    <h2 style="margin: 0 0 20px 0; color: #1f2937; font-size: 24px; font-weight: 600;">Welcome back!</h2>
+                                    <p style="margin: 0 0 24px 0; color: #4b5563; font-size: 16px; line-height: 1.6;">
+                                        Click the button below to securely log in to your Upsend account. This link will expire in 15 minutes for your security.
+                                    </p>
+                                    
+                                    <!-- CTA Button -->
+                                    <table width="100%" cellpadding="0" cellspacing="0">
+                                        <tr>
+                                            <td align="center" style="padding: 20px 0;">
+                                                <a href="${magicLink}" style="display: inline-block; background: linear-gradient(135deg, #9333ea 0%, #ec4899 100%); color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-size: 16px; font-weight: 600; box-shadow: 0 4px 6px rgba(147, 51, 234, 0.3);">
+                                                    Login to Upsend →
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                    
+                                    <p style="margin: 24px 0 0 0; color: #6b7280; font-size: 14px; line-height: 1.6;">
+                                        Or copy and paste this link into your browser:
+                                    </p>
+                                    <p style="margin: 8px 0 0 0; color: #9333ea; font-size: 14px; word-break: break-all;">
+                                        ${magicLink}
+                                    </p>
+                                </td>
+                            </tr>
+                            
+                            <!-- Footer -->
+                            <tr>
+                                <td style="background-color: #f9fafb; padding: 30px; text-align: center; border-top: 1px solid #e5e7eb;">
+                                    <p style="margin: 0 0 8px 0; color: #6b7280; font-size: 14px;">
+                                        This is an automated message from Upsend.
+                                    </p>
+                                    <p style="margin: 0; color: #9ca3af; font-size: 12px;">
+                                        If you didn't request this email, you can safely ignore it.
+                                    </p>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+        </body>
+        </html>
+      `;
+
+      await resend.emails.send({
+        from: 'Upsend <onboarding@resend.dev>',
+        to: email,
+        subject: '🎉 Your Magic Link to Upsend',
+        html: emailHtml,
+      });
+
+      console.log(`Magic link email sent to ${email}`);
+      
+      return c.json({ 
+        success: true, 
+        message: 'Magic link sent to your email! Check your inbox.',
+      });
+    } catch (emailError) {
+      console.error('Failed to send email:', emailError);
+      return c.json({ 
+        error: 'Failed to send magic link email. Please try again.',
+        details: emailError instanceof Error ? emailError.message : 'Unknown error'
+      }, 500);
+    }
   } catch (error) {
     console.error('Magic link error:', error);
     return c.json({ error: 'Failed to send magic link' }, 500);
